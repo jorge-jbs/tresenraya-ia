@@ -4,17 +4,42 @@ use std::ops::IndexMut;
 use std::collections::hash_set::HashSet;
 
 fn main() {
-    println!("{:?}", breadth_first_search(Tablero::default()));
+    use Celda::*;
+    /*
+    println!("{:?}", breadth_first_search(
+        [ Vacia, Circulo, Vacia
+        , Vacia, Cruz   , Vacia
+        , Vacia, Vacia  , Cruz
+        ].into(),
+        Cruz,
+    ));
+    */
+    /*
+    println!("{:?}", breadth_first_search(
+        [ Vacia, Vacia, Vacia
+        , Vacia, Vacia, Vacia
+        , Vacia, Vacia, Vacia
+        ].into(),
+        Circulo
+    ));
+    */
+    println!("{:?}", breadth_first_search(
+        [ Cruz , Vacia  , Cruz
+        , Vacia, Vacia  , Vacia
+        , Vacia, Circulo, Vacia
+        ].into(),
+        Cruz
+    ));
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 enum Celda {
     Vacia,
     Cruz,
     Circulo,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 struct Tablero([Celda; 9]);
 
 impl Default for Tablero {
@@ -52,7 +77,7 @@ enum Accion {
     Circulo(usize),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Nodo {
     padre: Option<Rc<Nodo>>,
     accion: Option<Accion>,
@@ -73,6 +98,36 @@ impl Tablero {
 
         || (self[0] != Vacia && self[0] == self[4] && self[4] == self[8])
         || (self[2] != Vacia && self[2] == self[4] && self[4] == self[6])
+    }
+
+    fn ganador(&self) -> Celda {
+        use Celda::*;
+        if (self[0] == Cruz && self[0] == self[1] && self[1] == self[2])
+        || (self[3] == Cruz && self[3] == self[4] && self[4] == self[5])
+        || (self[6] == Cruz && self[6] == self[7] && self[7] == self[8])
+
+        || (self[0] == Cruz && self[0] == self[3] && self[3] == self[6])
+        || (self[1] == Cruz && self[1] == self[4] && self[4] == self[7])
+        || (self[2] == Cruz && self[2] == self[5] && self[5] == self[8])
+
+        || (self[0] == Cruz && self[0] == self[4] && self[4] == self[8])
+        || (self[2] == Cruz && self[2] == self[4] && self[4] == self[6]) {
+            Cruz
+        } else if
+               (self[0] == Circulo && self[0] == self[1] && self[1] == self[2])
+            || (self[3] == Circulo && self[3] == self[4] && self[4] == self[5])
+            || (self[6] == Circulo && self[6] == self[7] && self[7] == self[8])
+
+            || (self[0] == Circulo && self[0] == self[3] && self[3] == self[6])
+            || (self[1] == Circulo && self[1] == self[4] && self[4] == self[7])
+            || (self[2] == Circulo && self[2] == self[5] && self[5] == self[8])
+
+            || (self[0] == Circulo && self[0] == self[4] && self[4] == self[8])
+            || (self[2] == Circulo && self[2] == self[4] && self[4] == self[6]) {
+            Circulo
+        } else {
+            Vacia
+        }
     }
 
     fn acciones(&self) -> Vec<Accion> {
@@ -127,7 +182,7 @@ impl Tablero {
     }
 }
 
-fn breadth_first_search(tablero_inicial: Tablero) -> Vec<Accion> {
+fn breadth_first_search(tablero_inicial: Tablero, ganador: Celda) -> Vec<Accion> {
     let nodo = Nodo {
         padre: None,
         accion: None,
@@ -138,13 +193,18 @@ fn breadth_first_search(tablero_inicial: Tablero) -> Vec<Accion> {
     let mut frontera = vec![nodo];
     let mut explorado: HashSet<Tablero> = HashSet::new();
     loop {
+        //print!("{} ", frontera.len());
+        println!("{:?}", frontera.iter().filter(|x| x.padre.is_some()).map(|x| Rc::strong_count(&x.clone().padre.unwrap())).collect::<Vec<_>>());
+
+        //println!("{:?}\n\n", frontera.iter().map(|x| x.accion).collect::<Vec<_>>());
+        //println!("{:?}\n\n", frontera);
         if frontera.is_empty() { panic!("Fallé. ¡Imposible!") }
         let nodo = frontera.pop().unwrap();
         explorado.insert(nodo.tablero.clone());
         for accion in nodo.tablero.acciones() {
             let hijo = nodo_hijo(nodo.clone(), accion);
             if !explorado.contains(&hijo.tablero) && frontera.iter().find(|x| x.tablero == hijo.tablero).is_none() {
-                if hijo.tablero.es_fin_de_partida() {
+                if hijo.tablero.ganador() == ganador {
                     return recopilar_acciones(hijo)
                 }
                 frontera.push(hijo);
@@ -166,8 +226,10 @@ fn recopilar_acciones(nodo_inicial: Nodo) -> Vec<Accion> {
     let mut acciones = Vec::new();
     let mut nodo = Rc::new(nodo_inicial);
     loop {
+        //println!("--{:?}", nodo);
         if nodo.accion.is_some() {
-            acciones.push(nodo.accion.unwrap());
+            //acciones.push(nodo.accion.unwrap());
+            acciones.insert(0, nodo.accion.unwrap());
         }
         match nodo.padre.clone() {
             Some(ref padre) => nodo = Rc::clone(padre),
